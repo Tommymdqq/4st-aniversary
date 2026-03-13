@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const signature = document.getElementById('signature');
             if (signature) {
-                signature.textContent = CONFIG.messages.signature;
+                signature.textContent = CONFIG.messages.signature || 'With all my love, Forever yours 💕';
             }
         }
     }
@@ -80,51 +80,94 @@ document.addEventListener('DOMContentLoaded', function() {
     // Apply config on load
     applyConfig();
     
-    // Enhanced Video Loading with error handling
+    // Enhanced Video Loading with polling for config & YouTube support
     function initVideo() {
         const videoElement = document.getElementById('loveVideo');
         const placeholder = document.getElementById('videoPlaceholder');
         const playBtn = document.getElementById('playVideoBtn');
         
-        if (!videoElement) return console.log('Video element not found');
-        
-        // Add event listeners for better control
-        videoElement.addEventListener('loadstart', () => console.log('Video loading started'));
-        videoElement.addEventListener('loadeddata', () => {
-            console.log('Video loaded successfully');
-            if (placeholder) placeholder.style.display = 'none';
-        });
-        videoElement.addEventListener('error', (e) => {
-            console.error('Video load error:', e);
-            if (playBtn) playBtn.textContent = '❌ Error de video - Convierte a MP4';
-        });
-        videoElement.addEventListener('canplay', () => videoElement.play().catch(console.log));
-        
-        // Play button handler
-        if (playBtn) {
-            playBtn.addEventListener('click', () => {
-                playBtn.style.display = 'none';
-                videoElement.play().catch(e => {
-                    console.log('Play failed (user gesture needed or format issue):', e);
-                    playBtn.style.display = 'block';
-                });
-            });
-        }
-        
-        // Config override if YouTube
-        if (window.CONFIG && window.CONFIG.videoUrl) {
-            videoElement.innerHTML = `<iframe src="${window.CONFIG.videoUrl}" frameborder="0" allowfullscreen style="width:100%;height:100%;border-radius: inherit;"></iframe>`;
-            if (placeholder) placeholder.style.display = 'none';
-            if (playBtn) playBtn.style.display = 'none';
+        if (!videoElement) {
+            console.error('Video element not found');
             return;
         }
         
-        videoElement.load();
+        function setupVideo() {
+            console.log('setupVideo called - CONFIG:', !!window.CONFIG, 'videoUrl:', window.CONFIG?.videoUrl);
+            
+            // YouTube priority
+            if (window.CONFIG?.videoUrl) {
+                const id = window.CONFIG.videoUrl.split('/embed/')[1]?.split('?')[0] || window.CONFIG.videoUrl.split('v=')[1]?.split('&')[0];
+                if (id) {
+                    const embedUrl = `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&loop=1&playlist=${id}&controls=1&modestbranding=1&rel=0`;
+                    
+                    videoElement.innerHTML = `<iframe src="${embedUrl}" title="YouTube video" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="width:100%;height:100%;border-radius: inherit;"></iframe>`;
+                    console.log('✅ YouTube iframe set:', embedUrl);
+                    
+                    if (placeholder) placeholder.style.display = 'none';
+                    if (playBtn) playBtn.style.display = 'none';
+                    return true;
+                } else {
+                    console.error('Invalid YouTube URL - no ID found');
+                }
+            }
+            
+            // Local video fallback
+            if (window.CONFIG?.videoPath) {
+                videoElement.querySelector('source').src = window.CONFIG.videoPath;
+                videoElement.load();
+                console.log('Local video source set:', window.CONFIG.videoPath);
+            }
+            
+            return false;
+        }
+        
+        // Event listeners (for local video)
+        const addListeners = () => {
+            videoElement.addEventListener('loadstart', () => console.log('Video loadstart'));
+            videoElement.addEventListener('loadeddata', () => {
+                console.log('✅ Video loadeddata');
+                if (placeholder) placeholder.style.display = 'none';
+            });
+            videoElement.addEventListener('error', (e) => {
+                console.error('Video error:', e);
+                if (playBtn) playBtn.textContent = '❌ Video error - check console';
+            });
+            videoElement.addEventListener('canplay', () => {
+                videoElement.play().catch(console.error);
+            });
+            
+            if (playBtn) {
+                playBtn.onclick = () => {
+                    playBtn.style.display = 'none';
+                    videoElement.play().catch(e => {
+                        console.error('Play failed:', e);
+                        playBtn.style.display = 'block';
+                    });
+                };
+            }
+        };
+        
+        // Poll for CONFIG (modules load async)
+        let attempts = 0;
+        const maxAttempts = 100; // 10s
+        function trySetup() {
+            attempts++;
+            console.log(`Video setup attempt ${attempts}/${maxAttempts}`);
+            
+            if (setupVideo() || attempts >= maxAttempts) {
+                if (!window.CONFIG?.videoUrl) addListeners(); // local events
+                return;
+            }
+            
+            setTimeout(trySetup, 100);
+        }
+        trySetup();
     }
     
-    // Initialize video after config
-    setTimeout(initVideo, 500);
+    // Call video init
+    setTimeout(initVideo, 200);
     
+    // Rest of code unchanged...
     // Create floating hearts
     function createHearts() {
         const heartsContainer = document.querySelector('.hearts-container');
@@ -141,8 +184,6 @@ document.addEventListener('DOMContentLoaded', function() {
             heartsContainer.appendChild(heart);
         }
     }
-
-
 
     // Love Note Toggle
     const loveButton = document.getElementById('loveButton');
@@ -336,7 +377,7 @@ document.addEventListener('DOMContentLoaded', function() {
         for (let i = 0; i < 25; i++) {
             setTimeout(() => {
                 const heart = document.createElement('div');
-                heart.textContent = hearts[Math.floor(Math.random() * hearts.length)];
+                heart.textContent = hearts[Math.random() * hearts.length | 0];
                 heart.style.position = 'absolute';
                 heart.style.left = Math.random() * 100 + '%';
                 heart.style.top = '-50px';
@@ -352,108 +393,76 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Add rain animation
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes rainDown {
-            to {
-                transform: translateY(calc(100vh + 50px));
-                opacity: 0;
+    // Add rain animation CSS
+    if (!document.getElementById('rain-style')) {
+        const style = document.createElement('style');
+        style.id = 'rain-style';
+        style.textContent = `
+            @keyframes rainDown {
+                to {
+                    transform: translateY(calc(100vh + 50px));
+                    opacity: 0;
+                }
             }
-        }
-    `;
-    document.head.appendChild(style);
+        `;
+        document.head.appendChild(style);
+    }
 
-    // Show memory message
+    // Show memory message (unchanged)
     function showMemoryMessage(message) {
         const messageDiv = document.createElement('div');
         messageDiv.textContent = message;
-        messageDiv.style.position = 'fixed';
-        messageDiv.style.top = '20%';
-        messageDiv.style.left = '50%';
-        messageDiv.style.transform = 'translate(-50%, -50%)';
-        messageDiv.style.background = 'rgba(255, 255, 255, 0.95)';
-        messageDiv.style.color = '#FF1493';
-        messageDiv.style.padding = '1.5rem 2rem';
-        messageDiv.style.borderRadius = '1rem';
-        messageDiv.style.fontFamily = 'Cormorant Garamond, serif';
-        messageDiv.style.fontSize = '1.3rem';
-        messageDiv.style.fontWeight = '600';
-        messageDiv.style.boxShadow = '0 10px 30px rgba(255, 105, 180, 0.3)';
-        messageDiv.style.zIndex = '10000';
-        messageDiv.style.textAlign = 'center';
-        messageDiv.style.maxWidth = '90%';
-        messageDiv.style.backdropFilter = 'blur(10px)';
+        messageDiv.style.cssText = `
+            position: fixed; top: 20%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95); color: #FF1493; padding: 1.5rem 2rem;
+            border-radius: 1rem; font-family: 'Cormorant Garamond', serif; font-size: 1.3rem;
+            font-weight: 600; box-shadow: 0 10px 30px rgba(255, 105, 180, 0.3); z-index: 10000;
+            text-align: center; max-width: 90%; backdrop-filter: blur(10px);
+        `;
         document.body.appendChild(messageDiv);
         
         setTimeout(() => {
             messageDiv.style.opacity = '0';
             messageDiv.style.transform = 'translate(-50%, -50%) scale(0.8)';
-            setTimeout(() => {
-                messageDiv.remove();
-            }, 500);
+            setTimeout(() => messageDiv.remove(), 500);
         }, 3000);
     }
 
     // Theme toggle
     const themeToggle = document.getElementById('themeToggle');
-    if (themeToggle) {
-        themeToggle.addEventListener('click', function() {
-            document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-            this.textContent = document.documentElement.dataset.theme === 'dark' ? '☀️' : '🌙';
-        });
-    }
+    themeToggle?.addEventListener('click', () => {
+        const isDark = document.documentElement.dataset.theme === 'dark';
+        document.documentElement.dataset.theme = isDark ? 'light' : 'dark';
+        themeToggle.textContent = isDark ? '☀️' : '🌙';
+    });
 
-    // Character interactions
-    const partnerCharacter = document.getElementById('partner');
-    const youCharacter = document.getElementById('you');
+    // Character clicks
+    document.getElementById('partner')?.addEventListener('click', () => {
+        const msg = window.CONFIG?.characterMessages?.partner ? `${window.CONFIG.partnerName}, ${window.CONFIG.characterMessages.partner}` : "You're the most beautiful! 💕";
+        showSpecialMessage(msg);
+        createHeartBurst();
+    });
+    
+    document.getElementById('you')?.addEventListener('click', () => {
+        const msg = window.CONFIG?.characterMessages?.you || "I'm so lucky to have you! 💖";
+        showSpecialMessage(msg);
+        createSparkles();
+    });
 
-    if (partnerCharacter) {
-        partnerCharacter.addEventListener('click', function() {
-            const message = window.CONFIG && window.CONFIG.characterMessages && window.CONFIG.characterMessages.partner 
-                ? `${window.CONFIG.partnerName}, ${window.CONFIG.characterMessages.partner}`
-                : "You're the most beautiful person in the world! 💕";
-            showSpecialMessage(message);
-            createHeartBurst();
-        });
-    }
-
-    if (youCharacter) {
-        youCharacter.addEventListener('click', function() {
-            const message = window.CONFIG && window.CONFIG.characterMessages && window.CONFIG.characterMessages.you 
-                ? window.CONFIG.characterMessages.you
-                : "I'm so lucky to have you in my life! 💖";
-            showSpecialMessage(message);
-            createSparkles();
-        });
-    }
-
-    // Initialize
+    // Initialize hearts
     createHearts();
     
-    // Add some initial animations
+    // Glow animation
     setTimeout(() => {
-        document.querySelector('.main-title').style.animation = 'glow 2s ease-in-out infinite alternate';
+        document.querySelector('.main-title')?.style.setProperty('--glow', 'true');
     }, 1000);
 
-    // Auto-create some floating hearts periodically
-    setInterval(() => {
-        if (Math.random() > 0.7) {
-            createHearts();
-        }
-    }, 10000);
+    // Periodic hearts
+    setInterval(() => Math.random() > 0.7 && createHearts(), 10000);
 
-    // Add smooth scrolling to sections
-    document.querySelectorAll('section').forEach(section => {
-        section.style.scrollMarginTop = '2rem';
-    });
-
-    // Add loading animation
-    window.addEventListener('load', function() {
-        document.body.style.opacity = '0';
-        document.body.style.transition = 'opacity 0.5s ease';
-        setTimeout(() => {
-            document.body.style.opacity = '1';
-        }, 100);
+    // Load fade
+    window.addEventListener('load', () => {
+        document.body.style.opacity = '1';
     });
 });
+
