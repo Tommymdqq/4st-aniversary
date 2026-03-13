@@ -50,8 +50,8 @@ const CONFIG = {
     },
 
     // Video local o embed
-    videoPath: 'assets/1773420306097997.mp4',  // Tu video MP4 convertido
-    // videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ'  // O YouTube (descomenta)
+    videoPath: 'assets/1773420306097997.mp4',  // Fallback local (opcional)
+    videoUrl: 'https://www.youtube.com/embed/K_cZx-sSb1k'  // YouTube embed principal
 };
 
 // Make config available globally
